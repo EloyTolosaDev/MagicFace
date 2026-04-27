@@ -25,19 +25,21 @@ editing works.
 
 ### Dependencies
 
-- Python 3.10
+- Python 3.12 (tested with Python 3.12.3)
 - Your computer should have a graphics card with approximately **8GB** to support running this test.
 
 ### Installation
 
-You can first create a new Python 3.10 environment using `conda` and then install this package using `pip` from the PyPI hub:
+Create a new Python 3.12 environment and install the dependencies:
 
 ```console
-conda create -n magicface python=3.10
-conda activate magicface
-pip install torch==2.1.1 torchvision==0.16.1 torchaudio==2.1.1 --index-url https://download.pytorch.org/whl/cu118
-pip install -r requirements.txt
+python3.12 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
 ```
+
+> `requirements.txt` is pinned for Python 3.12 compatibility and includes `torch==2.3.1` / `torchvision==0.18.1`.
 
 ### Download Models
 

@@ -1,48 +1,91 @@
-
-import os
 import argparse
+import sys
+from pathlib import Path
 
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torchvision.transforms as transforms
-from PIL import Image
 from insightface.app import FaceAnalysis
-
-import data.datasets_faceswap as datasets_faceswap
-import third_party.d3dfr.bfm as bfm
-import third_party.model_resnet_d3dfr as model_resnet_d3dfr
-from model import BiSeNet
+from PIL import Image
 from torchvision.utils import save_image
 
+try:
+    from .data import datasets_faceswap
+except ImportError:
+    import data.datasets_faceswap as datasets_faceswap
+
+try:
+    from .model import BiSeNet
+except ImportError:
+    from model import BiSeNet
 
 
-device = 'cuda'
-checkpoint = './checkpoints'
-app = FaceAnalysis(name='antelopev2', root=os.path.join('./',
-                                                        'third_party_files'),
-                       providers=['CUDAExecutionProvider', 'CPUExecutionProvider'])
-app.prepare(ctx_id=0, det_size=(640, 640))
+SCRIPT_DIR = Path(__file__).resolve().parent
+CHECKPOINT_DIR = SCRIPT_DIR / "checkpoints"
+INSIGHTFACE_ROOT = SCRIPT_DIR / "third_party_files"
+PARSING_MODEL_PATH = SCRIPT_DIR / "79999_iter.pth"
+D3DFR_WEIGHTS_PATH = CHECKPOINT_DIR / "third_party" / "d3dfr_res50_nofc.pth"
+BFM_MODEL_PATH = CHECKPOINT_DIR / "third_party" / "BFM_model_front.mat"
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+app = None
+net = None
+net_d3dfr = None
+bfm_facemodel = None
 
-n_classes = 19
-net = BiSeNet(n_classes=n_classes)
-net.cuda()
-model_pth = '79999_iter.pth'
-net.load_state_dict(torch.load(model_pth))
-net.eval()
 
 pil2tensor = transforms.Compose([
         transforms.ToTensor(),
         transforms.Normalize(mean=0.5, std=0.5)])
 
 
-net_d3dfr = model_resnet_d3dfr.getd3dfr_res50(os.path.join(checkpoint,
-                                                               'third_party/d3dfr_res50_nofc.pth')).eval().to(device)
+def initialize_models():
+    global app, net, net_d3dfr, bfm_facemodel
 
-bfm_facemodel = bfm.BFM(focal=1015*256/224, image_size=256,
-                            bfm_model_path=os.path.join(checkpoint, 'third_party/BFM_model_front.mat')).to(device)
+    if app is not None and net is not None and net_d3dfr is not None and bfm_facemodel is not None:
+        return
+
+    if not PARSING_MODEL_PATH.exists():
+        raise FileNotFoundError(
+            f"Missing parsing model at '{PARSING_MODEL_PATH}'. "
+            "Download model files from the README instructions before running this script."
+        )
+    if not D3DFR_WEIGHTS_PATH.exists() or not BFM_MODEL_PATH.exists():
+        raise FileNotFoundError(
+            "Missing 3D face reconstruction files in 'utils/checkpoints/third_party/'. "
+            "Download the model assets from the README instructions."
+        )
+
+    if str(SCRIPT_DIR) not in sys.path:
+        sys.path.insert(0, str(SCRIPT_DIR))
+
+    try:
+        import third_party.d3dfr.bfm as bfm
+        import third_party.model_resnet_d3dfr as model_resnet_d3dfr
+    except ModuleNotFoundError as exc:
+        raise ModuleNotFoundError(
+            "Missing Python modules under 'utils/third_party'. "
+            "Ensure required third-party files are downloaded into the utils directory."
+        ) from exc
+
+    use_cuda = torch.cuda.is_available()
+    providers = ["CUDAExecutionProvider", "CPUExecutionProvider"] if use_cuda else ["CPUExecutionProvider"]
+    ctx_id = 0 if use_cuda else -1
+    app = FaceAnalysis(name="antelopev2", root=str(INSIGHTFACE_ROOT), providers=providers)
+    app.prepare(ctx_id=ctx_id, det_size=(640, 640))
+
+    net = BiSeNet(n_classes=19).to(device)
+    net.load_state_dict(torch.load(PARSING_MODEL_PATH, map_location=device))
+    net.eval()
+
+    net_d3dfr = model_resnet_d3dfr.getd3dfr_res50(str(D3DFR_WEIGHTS_PATH)).eval().to(device)
+    bfm_facemodel = bfm.BFM(
+        focal=1015 * 256 / 224,
+        image_size=256,
+        bfm_model_path=str(BFM_MODEL_PATH),
+    ).to(device)
 
 
 def draw_pts70_batch(pts68, gaze, warp_mat256_np, dst_size, im_list=None, return_pt=False):
@@ -132,17 +175,21 @@ def keep_background(im, parsing_anno, stride):
 
 
 def get_landmarks(image):
+    initialize_models()
     face_info = app.get(cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR))
     if len(face_info) == 0:
         return 'error'
-    face_info = sorted(face_info, key=lambda x: (x['bbox'][2] - x['bbox'][0]) * x['bbox'][3] - x['bbox'][1])[-1]  # only use the maximum face
+    face_info = sorted(
+        face_info,
+        key=lambda x: (x["bbox"][2] - x["bbox"][0]) * (x["bbox"][3] - x["bbox"][1]),
+    )[-1]  # only use the maximum face
     pts5 = face_info['kps']
 
     warp_mat = datasets_faceswap.get_affine_transform(pts5, datasets_faceswap.mean_face_lm5p_256)
     drive_im_crop256 = cv2.warpAffine(np.array(image), warp_mat, (256, 256), flags=cv2.INTER_LINEAR)
 
     drive_im_crop256_pil = Image.fromarray(drive_im_crop256)
-    image_tar_crop256 = pil2tensor(drive_im_crop256_pil).view(1, 3, 256, 256).to('cuda')
+    image_tar_crop256 = pil2tensor(drive_im_crop256_pil).view(1, 3, 256, 256).to(device)
 
     gt_d3d_coeff = net_d3dfr(image_tar_crop256)
     gt_pts68, _ = bfm_facemodel.get_lm68(gt_d3d_coeff)
@@ -153,6 +200,7 @@ def get_landmarks(image):
     return im_pts70
 
 def make_bg_for_one_image(args):
+    initialize_models()
     trans = transforms.ToTensor()
 
     to_tensor = transforms.Compose([
@@ -167,21 +215,24 @@ def make_bg_for_one_image(args):
         # image = img
         img = to_tensor(image)
         img = torch.unsqueeze(img, 0)
-        img = img.cuda()
+        img = img.to(device)
         out = net(img)[0]  # [1, 19, 512, 512]
         parsing = out.squeeze(0).cpu().numpy().argmax(0)
-        im_pts70 = get_landmarks(image)[0]
+        im_pts70 = get_landmarks(image)
         if isinstance(im_pts70, str):
             print('cannot find face')
             return
         else:
+            im_pts70 = im_pts70[0]
             im_pts70 = torch.clamp((im_pts70 + 1) / 2, min=0, max=1)
 
             bg = keep_background(image, parsing, stride=1)  # cv form
             bg = cv2.cvtColor(bg, cv2.COLOR_RGB2BGR)
             bg = trans(bg)  # 0-1
             res = bg + im_pts70
-            save_image(res, args.save_path)
+            save_path = Path(args.save_path)
+            save_path.parent.mkdir(parents=True, exist_ok=True)
+            save_image(res, str(save_path))
 
 
 if __name__ == '__main__':

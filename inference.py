@@ -21,6 +21,10 @@ from mgface.pipelines_mgface.unet_deno_2d_condition import UNetDeno2DConditionMo
 ind_dict = {'AU1':0, 'AU2':1, 'AU4':2, 'AU5':3, 'AU6':4, 'AU9':5,
             'AU12':6, 'AU15':7, 'AU17':8, 'AU20':9, 'AU25':10, 'AU26':11}
 
+
+def get_device():
+    return "cuda" if torch.cuda.is_available() else "cpu"
+
 def parse_args(input_args=None):
     parser = argparse.ArgumentParser(description="Simple example of a MagicFace test script.")
     # /home/mengting/Desktop/diffusion_models/stable-diffusion-v1-5
@@ -134,9 +138,28 @@ def tokenize_captions(tokenizer, captions, max_length):
     return inputs.input_ids
 
 
+def parse_au_prompt(au_test, au_variation):
+    if not au_test or not au_variation:
+        raise ValueError("--au_test and --AU_variation must both be provided.")
+
+    au_prompt = np.zeros((12,), dtype=np.float32)
+    tested_aus = au_test.split("+")
+    variations = au_variation.split("+")
+
+    if len(tested_aus) != len(variations):
+        raise ValueError("--au_test and --AU_variation must have the same number of items.")
+
+    for au_name, variation in zip(tested_aus, variations):
+        if au_name not in ind_dict:
+            raise ValueError(f"Unsupported AU '{au_name}'. Supported AUs: {', '.join(ind_dict.keys())}.")
+        au_prompt[ind_dict[au_name]] = float(int(variation))
+
+    return au_prompt
+
+
 def main(args):
 
-    device = 'cuda'
+    device = get_device()
     denoising_unet_path = args.denoising_unet_path
     ID_unet_path = args.ID_unet_path
 
@@ -184,7 +207,7 @@ def main(args):
     text_encoder.requires_grad_(False)
     
 
-    weight_dtype = torch.float16
+    weight_dtype = torch.float16 if device == "cuda" else torch.float32
 
 
     pipeline = MgPipelineInference.from_pretrained(
@@ -211,27 +234,11 @@ def main(args):
 
     source, bg = make_data(args)
     prompt = 'A close up of a person.'
-    source = source.unsqueeze(0)
-    bg = bg.unsqueeze(0)
+    source = source.unsqueeze(0).to(device=device, dtype=weight_dtype)
+    bg = bg.unsqueeze(0).to(device=device, dtype=weight_dtype)
     
     prompt_embeds = text_encoder(tokenize_captions(tokenizer, [prompt], 2).to(device))[0]
-    au_prompt = np.zeros((12,))
-    au_test_file = args.au_test
-    AU_variation = args.AU_variation
-
-    if '+' not in au_test_file:
-        print('you are testing editing with a single AU')
-        tgt_au_ind = au_test_file
-        au_change = int(AU_variation)
-        au_prompt[ind_dict[tgt_au_ind]] = au_change
-    else:
-        print('you are testing editing with AU combinations')
-        au_test_file = au_test_file.split('+')
-        AU_variation = AU_variation.split('+')
-
-        for item1, item2 in zip(au_test_file, AU_variation):
-            tgt_au_ind = item1
-            au_prompt[ind_dict[tgt_au_ind]] = item2
+    au_prompt = parse_au_prompt(args.au_test, args.AU_variation)
     
     print(au_prompt)
 
@@ -239,7 +246,7 @@ def main(args):
     os.makedirs(saved_path, exist_ok=True)
     img_name = args.img_path.split('/')[-1]
 
-    tor_exp = torch.from_numpy(au_prompt).unsqueeze(0)
+    tor_exp = torch.from_numpy(au_prompt).unsqueeze(0).to(device=device, dtype=weight_dtype)
     samples = pipeline(
         prompt_embeds=prompt_embeds,
         source=source,

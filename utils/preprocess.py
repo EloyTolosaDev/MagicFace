@@ -1,22 +1,46 @@
-import os
 import argparse
+from pathlib import Path
+
 import cv2
 import numpy as np
+import torch
 import torchvision.transforms as transforms
-from PIL import Image
 from insightface.app import FaceAnalysis
+from PIL import Image
 from torchvision.utils import save_image
 
-import data.datasets_faceswap as datasets_faceswap
+try:
+    from .data import datasets_faceswap
+except ImportError:
+    import data.datasets_faceswap as datasets_faceswap
 
-pil2tensor = transforms.Compose([transforms.ToTensor(), transforms.Resize(512)])
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+INSIGHTFACE_ROOT = SCRIPT_DIR / "third_party_files"
 pil2tensor = transforms.ToTensor()
+app = None
 
-app = FaceAnalysis(name='antelopev2', root=os.path.join('./',
-                                                        'third_party_files'),
-                       providers=['CUDAExecutionProvider', 'CPUExecutionProvider'])
-app.prepare(ctx_id=0, det_size=(640, 640))
+
+def get_face_analysis_app():
+    global app
+
+    if app is not None:
+        return app
+
+    use_cuda = torch.cuda.is_available()
+    providers = ["CUDAExecutionProvider", "CPUExecutionProvider"] if use_cuda else ["CPUExecutionProvider"]
+    ctx_id = 0 if use_cuda else -1
+
+    try:
+        app = FaceAnalysis(name="antelopev2", root=str(INSIGHTFACE_ROOT), providers=providers)
+        app.prepare(ctx_id=ctx_id, det_size=(640, 640))
+    except Exception as exc:
+        raise RuntimeError(
+            f"Failed to initialize InsightFace models from '{INSIGHTFACE_ROOT}'. "
+            "Make sure the model files are available (or allow first-time download)."
+        ) from exc
+
+    return app
 
 
 def get_bbox(dets, crop_ratio):
@@ -39,14 +63,17 @@ def get_bbox(dets, crop_ratio):
 
 
 def crop_one_image(args):
+    app = get_face_analysis_app()
     cur_img_sor_path = args.img_path
     im_pil_sor = Image.open(cur_img_sor_path).convert("RGB")
     face_info_sor = app.get(cv2.cvtColor(np.array(im_pil_sor), cv2.COLOR_RGB2BGR))
     assert len(face_info_sor) >= 1, 'The input image must contain a face！'
     if len(face_info_sor) > 1:
         print('The input image contain more than one face, we will only use the maximum face')
-    face_info_sor = \
-    sorted(face_info_sor, key=lambda x: (x['bbox'][2] - x['bbox'][0]) * x['bbox'][3] - x['bbox'][1])[-1]
+    face_info_sor = sorted(
+        face_info_sor,
+        key=lambda x: (x["bbox"][2] - x["bbox"][0]) * (x["bbox"][3] - x["bbox"][1]),
+    )[-1]
     dets_sor= face_info_sor['bbox']
     bbox_pst_sor = get_bbox(dets_sor, crop_ratio=0.75)
 
@@ -56,7 +83,9 @@ def crop_one_image(args):
 
     im_pil_sor = Image.fromarray(im_crop512_sor)
     im_pil_sor = pil2tensor(im_pil_sor)
-    save_image(im_pil_sor, args.save_path)
+    save_path = Path(args.save_path)
+    save_path.parent.mkdir(parents=True, exist_ok=True)
+    save_image(im_pil_sor, str(save_path))
 
 
 

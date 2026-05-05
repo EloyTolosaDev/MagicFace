@@ -34,6 +34,23 @@ def _has_magicface_assets():
     return all((MAGICFACE_ASSET_DIR / path).exists() for path in MAGICFACE_REQUIRED_PATHS)
 
 
+def _normalize_insightface_model_dir(model_dir: Path) -> None:
+    nested_model_dir = model_dir / INSIGHTFACE_MODEL_NAME
+    if any(model_dir.glob("*.onnx")) or not nested_model_dir.is_dir():
+        return
+
+    for path in nested_model_dir.iterdir():
+        target = model_dir / path.name
+        if target.exists():
+            continue
+        path.replace(target)
+
+    try:
+        nested_model_dir.rmdir()
+    except OSError:
+        pass
+
+
 def ensure_magicface_assets() -> Path:
     ensure_model_dirs()
     if _has_magicface_assets():
@@ -64,6 +81,7 @@ def ensure_magicface_assets() -> Path:
 def ensure_insightface_model() -> Path:
     ensure_model_dirs()
     model_dir = INSIGHTFACE_ROOT / "models" / INSIGHTFACE_MODEL_NAME
+    _normalize_insightface_model_dir(model_dir)
     if model_dir.exists() and any(model_dir.glob("*.onnx")):
         return model_dir
 
@@ -71,6 +89,7 @@ def ensure_insightface_model() -> Path:
         from insightface.utils.storage import download
 
         model_dir = Path(download("models", INSIGHTFACE_MODEL_NAME, force=True, root=str(INSIGHTFACE_ROOT)))
+        _normalize_insightface_model_dir(model_dir)
     except Exception as exc:
         raise RuntimeError(
             f"Failed to download InsightFace '{INSIGHTFACE_MODEL_NAME}' model into '{INSIGHTFACE_ROOT}'. "

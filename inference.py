@@ -16,6 +16,7 @@ from transformers import CLIPTextModel, CLIPTokenizer
 from mgface.pipelines_mgface.pipeline_mgface import MgPipeline as MgPipelineInference
 from mgface.pipelines_mgface.unet_ID_2d_condition import UNetID2DConditionModel
 from mgface.pipelines_mgface.unet_deno_2d_condition import UNetDeno2DConditionModel
+from utils.model_assets import MAGICFACE_REPO_ID, ensure_magicface_assets
 from utils.paths import HUGGINGFACE_CACHE_DIR
 
 # AU mapping
@@ -165,6 +166,11 @@ def main(args):
     ID_unet_path = args.ID_unet_path
     HUGGINGFACE_CACHE_DIR.mkdir(parents=True, exist_ok=True)
     cache_dir = str(HUGGINGFACE_CACHE_DIR)
+    magicface_assets = ensure_magicface_assets()
+    if denoising_unet_path == MAGICFACE_REPO_ID:
+        denoising_unet_path = str(magicface_assets)
+    if ID_unet_path == MAGICFACE_REPO_ID:
+        ID_unet_path = str(magicface_assets)
 
     vae = AutoencoderKL.from_pretrained(
             args.pretrained_model_name_or_path,

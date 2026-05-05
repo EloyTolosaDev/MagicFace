@@ -50,19 +50,13 @@ Runtime model caches are stored under the repository-local `.models/` directory:
 
 ### Download Models
 
-You can directly retrieve our model from [HuggingFace](https://huggingface.co/mengtingwei/magicface/tree/main).
+The scripts download required models into `.models/` automatically on first use. To pre-download them explicitly:
 
-
-Or download using python script:
-
-```python
-# Download a specific file
-from huggingface_hub import hf_hub_download
-hf_hub_download(repo_id="mengtingwei/magicface", filename="79999_iter.pth", local_dir="./utils")
-# Download all files 
-from huggingface_hub import snapshot_download
-snapshot_download(repo_id="mengtingwei/magicface", local_dir="./")
+```console
+python -m utils.model_assets
 ```
+
+This fetches MagicFace assets from [HuggingFace](https://huggingface.co/mengtingwei/magicface/tree/main) into `.models/magicface`, keeps the Hugging Face cache under `.models/huggingface`, and fetches InsightFace `antelopev2` into `.models/insightface`.
 
 
 ### Usage
@@ -98,18 +92,21 @@ python inference.py --img_path './test_images/00381.png' --bg_path './test_image
 If you want to edit your own images, you need to compute the 
 background and pose for attribute condition.
 
-1. Check if you have downloaded all required files and saved in the ``utils`` directory. It should be 
-like this:
+1. Check that model assets are available locally. They are downloaded automatically, but after download the local structure should be like this:
 
 ```
-utils
-    79999_iter.pth
-    third_party
-        ...
-    third_party_files
-        ...
-    checkpoints
-        ...
+.models
+    magicface
+        utils
+            79999_iter.pth
+            third_party
+                ...
+            checkpoints
+                ...
+    insightface
+        models
+            antelopev2
+                ...
 ```
 
 2. Crop your image into the resolution of 512 $\times$ 512. Please provide

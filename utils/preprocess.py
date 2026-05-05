@@ -14,9 +14,11 @@ os.environ.setdefault("NO_ALBUMENTATIONS_UPDATE", "1")
 from insightface.app import FaceAnalysis
 
 try:
+    from .model_assets import ensure_insightface_model
     from .paths import INSIGHTFACE_ROOT
     from .data import datasets_faceswap
 except ImportError:
+    from model_assets import ensure_insightface_model
     from paths import INSIGHTFACE_ROOT
     import data.datasets_faceswap as datasets_faceswap
 
@@ -39,7 +41,7 @@ def get_face_analysis_app():
         return app
 
     providers, ctx_id = get_onnx_providers()
-    INSIGHTFACE_ROOT.mkdir(parents=True, exist_ok=True)
+    ensure_insightface_model()
 
     try:
         app = FaceAnalysis(name="antelopev2", root=str(INSIGHTFACE_ROOT), providers=providers)
@@ -47,7 +49,7 @@ def get_face_analysis_app():
     except Exception as exc:
         raise RuntimeError(
             f"Failed to initialize InsightFace models from '{INSIGHTFACE_ROOT}'. "
-            "Make sure the model files are available (or allow first-time download)."
+            "Expected files under 'models/antelopev2' inside that directory."
         ) from exc
 
     return app

@@ -17,9 +17,11 @@ os.environ.setdefault("NO_ALBUMENTATIONS_UPDATE", "1")
 from insightface.app import FaceAnalysis
 
 try:
+    from .model_assets import ensure_insightface_model, ensure_magicface_assets
     from .paths import INSIGHTFACE_ROOT
     from .data import datasets_faceswap
 except ImportError:
+    from model_assets import ensure_insightface_model, ensure_magicface_assets
     from paths import INSIGHTFACE_ROOT
     import data.datasets_faceswap as datasets_faceswap
 
@@ -29,11 +31,6 @@ except ImportError:
     from model import BiSeNet
 
 
-SCRIPT_DIR = Path(__file__).resolve().parent
-CHECKPOINT_DIR = SCRIPT_DIR / "checkpoints"
-PARSING_MODEL_PATH = SCRIPT_DIR / "79999_iter.pth"
-D3DFR_WEIGHTS_PATH = CHECKPOINT_DIR / "third_party" / "d3dfr_res50_nofc.pth"
-BFM_MODEL_PATH = CHECKPOINT_DIR / "third_party" / "BFM_model_front.mat"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 app = None
@@ -62,43 +59,52 @@ def initialize_models():
     if app is not None and net is not None and net_d3dfr is not None and bfm_facemodel is not None:
         return
 
-    if not PARSING_MODEL_PATH.exists():
+    magicface_assets = ensure_magicface_assets()
+    magicface_utils_dir = magicface_assets / "utils"
+    parsing_model_path = magicface_utils_dir / "79999_iter.pth"
+    d3dfr_weights_path = magicface_utils_dir / "checkpoints" / "third_party" / "d3dfr_res50_nofc.pth"
+    bfm_model_path = magicface_utils_dir / "checkpoints" / "third_party" / "BFM_model_front.mat"
+
+    if not parsing_model_path.exists():
         raise FileNotFoundError(
-            f"Missing parsing model at '{PARSING_MODEL_PATH}'. "
-            "Download model files from the README instructions before running this script."
+            f"Missing parsing model at '{parsing_model_path}'."
         )
-    if not D3DFR_WEIGHTS_PATH.exists() or not BFM_MODEL_PATH.exists():
+    if not d3dfr_weights_path.exists() or not bfm_model_path.exists():
         raise FileNotFoundError(
-            "Missing 3D face reconstruction files in 'utils/checkpoints/third_party/'. "
-            "Download the model assets from the README instructions."
+            f"Missing 3D face reconstruction files in '{magicface_utils_dir / 'checkpoints' / 'third_party'}'."
         )
 
-    if str(SCRIPT_DIR) not in sys.path:
-        sys.path.insert(0, str(SCRIPT_DIR))
+    if str(magicface_utils_dir) not in sys.path:
+        sys.path.insert(0, str(magicface_utils_dir))
 
     try:
         import third_party.d3dfr.bfm as bfm
         import third_party.model_resnet_d3dfr as model_resnet_d3dfr
     except ModuleNotFoundError as exc:
         raise ModuleNotFoundError(
-            "Missing Python modules under 'utils/third_party'. "
-            "Ensure required third-party files are downloaded into the utils directory."
+            f"Missing Python modules under '{magicface_utils_dir / 'third_party'}'."
         ) from exc
 
     providers, ctx_id = get_onnx_providers()
-    INSIGHTFACE_ROOT.mkdir(parents=True, exist_ok=True)
-    app = FaceAnalysis(name="antelopev2", root=str(INSIGHTFACE_ROOT), providers=providers)
-    app.prepare(ctx_id=ctx_id, det_size=(640, 640))
+    ensure_insightface_model()
+    try:
+        app = FaceAnalysis(name="antelopev2", root=str(INSIGHTFACE_ROOT), providers=providers)
+        app.prepare(ctx_id=ctx_id, det_size=(640, 640))
+    except Exception as exc:
+        raise RuntimeError(
+            f"Failed to initialize InsightFace models from '{INSIGHTFACE_ROOT}'. "
+            "Expected files under 'models/antelopev2' inside that directory."
+        ) from exc
 
     net = BiSeNet(n_classes=19).to(device)
-    net.load_state_dict(torch.load(PARSING_MODEL_PATH, map_location=device))
+    net.load_state_dict(torch.load(parsing_model_path, map_location=device))
     net.eval()
 
-    net_d3dfr = model_resnet_d3dfr.getd3dfr_res50(str(D3DFR_WEIGHTS_PATH)).eval().to(device)
+    net_d3dfr = model_resnet_d3dfr.getd3dfr_res50(str(d3dfr_weights_path)).eval().to(device)
     bfm_facemodel = bfm.BFM(
         focal=1015 * 256 / 224,
         image_size=256,
-        bfm_model_path=str(BFM_MODEL_PATH),
+        bfm_model_path=str(bfm_model_path),
     ).to(device)
 
 

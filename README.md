@@ -97,12 +97,11 @@ background and pose for attribute condition.
 ```
 .models
     magicface
-        utils
-            79999_iter.pth
-            third_party
-                ...
-            checkpoints
-                ...
+        79999_iter.pth
+        third_party
+            ...
+        checkpoints
+            ...
     insightface
         models
             antelopev2

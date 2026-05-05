@@ -17,11 +17,11 @@ os.environ.setdefault("NO_ALBUMENTATIONS_UPDATE", "1")
 from insightface.app import FaceAnalysis
 
 try:
-    from .model_assets import ensure_insightface_model, ensure_magicface_assets
+    from .model_assets import ensure_insightface_model, get_magicface_support_dir
     from .paths import INSIGHTFACE_ROOT
     from .data import datasets_faceswap
 except ImportError:
-    from model_assets import ensure_insightface_model, ensure_magicface_assets
+    from model_assets import ensure_insightface_model, get_magicface_support_dir
     from paths import INSIGHTFACE_ROOT
     import data.datasets_faceswap as datasets_faceswap
 
@@ -59,11 +59,10 @@ def initialize_models():
     if app is not None and net is not None and net_d3dfr is not None and bfm_facemodel is not None:
         return
 
-    magicface_assets = ensure_magicface_assets()
-    magicface_utils_dir = magicface_assets / "utils"
-    parsing_model_path = magicface_utils_dir / "79999_iter.pth"
-    d3dfr_weights_path = magicface_utils_dir / "checkpoints" / "third_party" / "d3dfr_res50_nofc.pth"
-    bfm_model_path = magicface_utils_dir / "checkpoints" / "third_party" / "BFM_model_front.mat"
+    magicface_support_dir = get_magicface_support_dir()
+    parsing_model_path = magicface_support_dir / "79999_iter.pth"
+    d3dfr_weights_path = magicface_support_dir / "checkpoints" / "third_party" / "d3dfr_res50_nofc.pth"
+    bfm_model_path = magicface_support_dir / "checkpoints" / "third_party" / "BFM_model_front.mat"
 
     if not parsing_model_path.exists():
         raise FileNotFoundError(
@@ -71,18 +70,18 @@ def initialize_models():
         )
     if not d3dfr_weights_path.exists() or not bfm_model_path.exists():
         raise FileNotFoundError(
-            f"Missing 3D face reconstruction files in '{magicface_utils_dir / 'checkpoints' / 'third_party'}'."
+            f"Missing 3D face reconstruction files in '{magicface_support_dir / 'checkpoints' / 'third_party'}'."
         )
 
-    if str(magicface_utils_dir) not in sys.path:
-        sys.path.insert(0, str(magicface_utils_dir))
+    if str(magicface_support_dir) not in sys.path:
+        sys.path.insert(0, str(magicface_support_dir))
 
     try:
         import third_party.d3dfr.bfm as bfm
         import third_party.model_resnet_d3dfr as model_resnet_d3dfr
     except ModuleNotFoundError as exc:
         raise ModuleNotFoundError(
-            f"Missing Python modules under '{magicface_utils_dir / 'third_party'}'."
+            f"Missing Python modules under '{magicface_support_dir / 'third_party'}'."
         ) from exc
 
     providers, ctx_id = get_onnx_providers()

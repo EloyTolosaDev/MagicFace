@@ -17,11 +17,22 @@ INSIGHTFACE_MODEL_NAME = "antelopev2"
 MAGICFACE_REQUIRED_PATHS = [
     "ID_enc",
     "denoising_unet",
+    "79999_iter.pth",
+    "checkpoints/third_party/d3dfr_res50_nofc.pth",
+    "checkpoints/third_party/BFM_model_front.mat",
+    "third_party",
+]
+
+
+MAGICFACE_LEGACY_REQUIRED_PATHS = [
+    "ID_enc",
+    "denoising_unet",
     "utils/79999_iter.pth",
     "utils/checkpoints/third_party/d3dfr_res50_nofc.pth",
     "utils/checkpoints/third_party/BFM_model_front.mat",
     "utils/third_party",
 ]
+
 
 def ensure_model_dirs():
     MODEL_ROOT.mkdir(parents=True, exist_ok=True)
@@ -31,7 +42,21 @@ def ensure_model_dirs():
 
 
 def _has_magicface_assets():
-    return all((MAGICFACE_ASSET_DIR / path).exists() for path in MAGICFACE_REQUIRED_PATHS)
+    return _has_paths(MAGICFACE_REQUIRED_PATHS) or _has_paths(MAGICFACE_LEGACY_REQUIRED_PATHS)
+
+
+def _has_paths(paths):
+    return all((MAGICFACE_ASSET_DIR / path).exists() for path in paths)
+
+
+def get_magicface_support_dir() -> Path:
+    ensure_magicface_assets()
+    if (MAGICFACE_ASSET_DIR / "79999_iter.pth").exists():
+        return MAGICFACE_ASSET_DIR
+    legacy_utils_dir = MAGICFACE_ASSET_DIR / "utils"
+    if (legacy_utils_dir / "79999_iter.pth").exists():
+        return legacy_utils_dir
+    return MAGICFACE_ASSET_DIR
 
 
 def _normalize_insightface_model_dir(model_dir: Path) -> None:

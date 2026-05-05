@@ -43,6 +43,11 @@ Dependencies are declared in `pyproject.toml`. The core pins keep the custom Dif
 
 The default install uses `onnxruntime` for CPU preprocessing. If you need ONNX CUDA execution for `preprocess.py` or `retrieve_bg.py`, install the matching `onnxruntime-gpu` build for your CUDA setup after the core install.
 
+Runtime model caches are stored under the repository-local `.models/` directory:
+
+- `.models/huggingface`: Hugging Face model cache used by `inference.py`.
+- `.models/insightface`: InsightFace model root. InsightFace looks for `models/antelopev2` inside this directory.
+
 ### Download Models
 
 You can directly retrieve our model from [HuggingFace](https://huggingface.co/mengtingwei/magicface/tree/main).

@@ -17,8 +17,10 @@ os.environ.setdefault("NO_ALBUMENTATIONS_UPDATE", "1")
 from insightface.app import FaceAnalysis
 
 try:
+    from .paths import INSIGHTFACE_ROOT
     from .data import datasets_faceswap
 except ImportError:
+    from paths import INSIGHTFACE_ROOT
     import data.datasets_faceswap as datasets_faceswap
 
 try:
@@ -29,7 +31,6 @@ except ImportError:
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 CHECKPOINT_DIR = SCRIPT_DIR / "checkpoints"
-INSIGHTFACE_ROOT = SCRIPT_DIR / "third_party_files"
 PARSING_MODEL_PATH = SCRIPT_DIR / "79999_iter.pth"
 D3DFR_WEIGHTS_PATH = CHECKPOINT_DIR / "third_party" / "d3dfr_res50_nofc.pth"
 BFM_MODEL_PATH = CHECKPOINT_DIR / "third_party" / "BFM_model_front.mat"
@@ -85,6 +86,7 @@ def initialize_models():
         ) from exc
 
     providers, ctx_id = get_onnx_providers()
+    INSIGHTFACE_ROOT.mkdir(parents=True, exist_ok=True)
     app = FaceAnalysis(name="antelopev2", root=str(INSIGHTFACE_ROOT), providers=providers)
     app.prepare(ctx_id=ctx_id, det_size=(640, 640))
 

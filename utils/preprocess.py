@@ -14,13 +14,13 @@ os.environ.setdefault("NO_ALBUMENTATIONS_UPDATE", "1")
 from insightface.app import FaceAnalysis
 
 try:
+    from .paths import INSIGHTFACE_ROOT
     from .data import datasets_faceswap
 except ImportError:
+    from paths import INSIGHTFACE_ROOT
     import data.datasets_faceswap as datasets_faceswap
 
 
-SCRIPT_DIR = Path(__file__).resolve().parent
-INSIGHTFACE_ROOT = SCRIPT_DIR / "third_party_files"
 pil2tensor = transforms.ToTensor()
 app = None
 
@@ -39,6 +39,7 @@ def get_face_analysis_app():
         return app
 
     providers, ctx_id = get_onnx_providers()
+    INSIGHTFACE_ROOT.mkdir(parents=True, exist_ok=True)
 
     try:
         app = FaceAnalysis(name="antelopev2", root=str(INSIGHTFACE_ROOT), providers=providers)

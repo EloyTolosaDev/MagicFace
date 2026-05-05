@@ -16,6 +16,7 @@ from transformers import CLIPTextModel, CLIPTokenizer
 from mgface.pipelines_mgface.pipeline_mgface import MgPipeline as MgPipelineInference
 from mgface.pipelines_mgface.unet_ID_2d_condition import UNetID2DConditionModel
 from mgface.pipelines_mgface.unet_deno_2d_condition import UNetDeno2DConditionModel
+from utils.paths import HUGGINGFACE_CACHE_DIR
 
 # AU mapping
 ind_dict = {'AU1':0, 'AU2':1, 'AU4':2, 'AU5':3, 'AU6':4, 'AU9':5,
@@ -162,22 +163,24 @@ def main(args):
     device = get_device()
     denoising_unet_path = args.denoising_unet_path
     ID_unet_path = args.ID_unet_path
+    HUGGINGFACE_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    cache_dir = str(HUGGINGFACE_CACHE_DIR)
 
     vae = AutoencoderKL.from_pretrained(
             args.pretrained_model_name_or_path,
             subfolder="vae",
-            cache_dir='./'
+            cache_dir=cache_dir
         ).to(device)
     text_encoder = CLIPTextModel.from_pretrained(
             args.pretrained_model_name_or_path,
             subfolder="text_encoder",
-        cache_dir='./'
+        cache_dir=cache_dir
         ).to(device)
 
     tokenizer = CLIPTokenizer.from_pretrained(
             args.pretrained_model_name_or_path,
             subfolder="tokenizer",
-        cache_dir='./'
+        cache_dir=cache_dir
         )
 
     unet_ID = UNetID2DConditionModel.from_pretrained(
@@ -187,7 +190,7 @@ def main(args):
             use_safetensors=True,
             low_cpu_mem_usage=False,
             ignore_mismatched_sizes=True,
-            cache_dir='./',
+            cache_dir=cache_dir,
         )
 
     # 
@@ -198,7 +201,7 @@ def main(args):
             use_safetensors=True,
             low_cpu_mem_usage=False,
             ignore_mismatched_sizes=True,
-        cache_dir='./',
+        cache_dir=cache_dir,
         )
 
     unet_deno.requires_grad_(False)
@@ -220,6 +223,7 @@ def main(args):
         safety_checker=None,
         revision=args.revision,
         variant=args.variant,
+        cache_dir=cache_dir,
         torch_dtype=weight_dtype,
     ).to(device)
     

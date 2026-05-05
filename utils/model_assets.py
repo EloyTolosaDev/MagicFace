@@ -3,6 +3,8 @@ from pathlib import Path
 
 from huggingface_hub import snapshot_download
 
+os.environ.setdefault("NO_ALBUMENTATIONS_UPDATE", "1")
+
 try:
     from .paths import HUGGINGFACE_CACHE_DIR, INSIGHTFACE_ROOT, MAGICFACE_ASSET_DIR, MODEL_ROOT
 except ImportError:
@@ -20,15 +22,6 @@ MAGICFACE_REQUIRED_PATHS = [
     "utils/checkpoints/third_party/BFM_model_front.mat",
     "utils/third_party",
 ]
-
-MAGICFACE_ALLOW_PATTERNS = [
-    "ID_enc/**",
-    "denoising_unet/**",
-    "utils/79999_iter.pth",
-    "utils/checkpoints/**",
-    "utils/third_party/**",
-]
-
 
 def ensure_model_dirs():
     MODEL_ROOT.mkdir(parents=True, exist_ok=True)
@@ -52,7 +45,6 @@ def ensure_magicface_assets() -> Path:
             cache_dir=HUGGINGFACE_CACHE_DIR,
             local_dir=MAGICFACE_ASSET_DIR,
             local_dir_use_symlinks=False,
-            allow_patterns=MAGICFACE_ALLOW_PATTERNS,
         )
     except Exception as exc:
         raise RuntimeError(
@@ -76,15 +68,22 @@ def ensure_insightface_model() -> Path:
         return model_dir
 
     try:
-        from insightface.utils.storage import ensure_available
+        from insightface.utils.storage import download
 
-        return Path(ensure_available("models", INSIGHTFACE_MODEL_NAME, root=str(INSIGHTFACE_ROOT)))
+        model_dir = Path(download("models", INSIGHTFACE_MODEL_NAME, force=True, root=str(INSIGHTFACE_ROOT)))
     except Exception as exc:
         raise RuntimeError(
             f"Failed to download InsightFace '{INSIGHTFACE_MODEL_NAME}' model into '{INSIGHTFACE_ROOT}'. "
             "Check network access or pre-populate "
             f"'{INSIGHTFACE_ROOT / 'models' / INSIGHTFACE_MODEL_NAME}'."
         ) from exc
+
+    if not any(model_dir.glob("*.onnx")):
+        raise FileNotFoundError(
+            f"InsightFace model directory '{model_dir}' is incomplete. Expected at least one .onnx file."
+        )
+
+    return model_dir
 
 
 def ensure_all_models():

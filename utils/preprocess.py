@@ -1,13 +1,17 @@
 import argparse
+import os
 from pathlib import Path
 
 import cv2
 import numpy as np
-import torch
+import onnxruntime as ort
 import torchvision.transforms as transforms
-from insightface.app import FaceAnalysis
 from PIL import Image
 from torchvision.utils import save_image
+
+os.environ.setdefault("NO_ALBUMENTATIONS_UPDATE", "1")
+
+from insightface.app import FaceAnalysis
 
 try:
     from .data import datasets_faceswap
@@ -21,15 +25,20 @@ pil2tensor = transforms.ToTensor()
 app = None
 
 
+def get_onnx_providers():
+    available_providers = ort.get_available_providers()
+    if "CUDAExecutionProvider" in available_providers:
+        return ["CUDAExecutionProvider", "CPUExecutionProvider"], 0
+    return ["CPUExecutionProvider"], -1
+
+
 def get_face_analysis_app():
     global app
 
     if app is not None:
         return app
 
-    use_cuda = torch.cuda.is_available()
-    providers = ["CUDAExecutionProvider", "CPUExecutionProvider"] if use_cuda else ["CPUExecutionProvider"]
-    ctx_id = 0 if use_cuda else -1
+    providers, ctx_id = get_onnx_providers()
 
     try:
         app = FaceAnalysis(name="antelopev2", root=str(INSIGHTFACE_ROOT), providers=providers)

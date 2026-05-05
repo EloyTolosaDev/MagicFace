@@ -36,10 +36,12 @@ Create a new Python 3.12 environment and install the dependencies:
 python3.12 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
+python -m pip install -e .
 ```
 
-> `requirements.txt` is pinned for Python 3.12 compatibility and includes `torch==2.3.1` / `torchvision==0.18.1`.
+Dependencies are declared in `pyproject.toml`. The core pins keep the custom Diffusers pipeline on the compatible `diffusers==0.25.1`, `huggingface-hub==0.25.2`, and `transformers==4.48.3` set while using Python 3.12.
+
+The default install uses `onnxruntime` for CPU preprocessing. If you need ONNX CUDA execution for `preprocess.py` or `retrieve_bg.py`, install the matching `onnxruntime-gpu` build for your CUDA setup after the core install.
 
 ### Download Models
 

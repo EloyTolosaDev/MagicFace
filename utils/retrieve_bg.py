@@ -1,15 +1,20 @@
 import argparse
+import os
 import sys
 from pathlib import Path
 
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
+import onnxruntime as ort
 import torch
 import torchvision.transforms as transforms
-from insightface.app import FaceAnalysis
 from PIL import Image
 from torchvision.utils import save_image
+
+os.environ.setdefault("NO_ALBUMENTATIONS_UPDATE", "1")
+
+from insightface.app import FaceAnalysis
 
 try:
     from .data import datasets_faceswap
@@ -36,9 +41,18 @@ net_d3dfr = None
 bfm_facemodel = None
 
 
+RESAMPLE_BILINEAR = Image.Resampling.BILINEAR
+
 pil2tensor = transforms.Compose([
         transforms.ToTensor(),
         transforms.Normalize(mean=0.5, std=0.5)])
+
+
+def get_onnx_providers():
+    available_providers = ort.get_available_providers()
+    if "CUDAExecutionProvider" in available_providers:
+        return ["CUDAExecutionProvider", "CPUExecutionProvider"], 0
+    return ["CPUExecutionProvider"], -1
 
 
 def initialize_models():
@@ -70,9 +84,7 @@ def initialize_models():
             "Ensure required third-party files are downloaded into the utils directory."
         ) from exc
 
-    use_cuda = torch.cuda.is_available()
-    providers = ["CUDAExecutionProvider", "CPUExecutionProvider"] if use_cuda else ["CPUExecutionProvider"]
-    ctx_id = 0 if use_cuda else -1
+    providers, ctx_id = get_onnx_providers()
     app = FaceAnalysis(name="antelopev2", root=str(INSIGHTFACE_ROOT), providers=providers)
     app.prepare(ctx_id=ctx_id, det_size=(640, 640))
 
@@ -211,7 +223,7 @@ def make_bg_for_one_image(args):
 
     with torch.no_grad():
         img = Image.open(args.img_path)
-        image = img.resize((512, 512), Image.BILINEAR)
+        image = img.resize((512, 512), RESAMPLE_BILINEAR)
         # image = img
         img = to_tensor(image)
         img = torch.unsqueeze(img, 0)

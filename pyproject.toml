@@ -9,11 +9,14 @@ description = "MagicFace inference code"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
-    "torch==2.3.1",
-    "torchvision==0.18.1",
+    "torch==2.3.1; sys_platform != 'win32'",
+    "torchvision==0.18.1; sys_platform != 'win32'",
+    "torch @ https://download.pytorch.org/whl/cu121/torch-2.3.1%2Bcu121-cp312-cp312-win_amd64.whl; sys_platform == 'win32'",
+    "torchvision @ https://download.pytorch.org/whl/cu121/torchvision-0.18.1%2Bcu121-cp312-cp312-win_amd64.whl; sys_platform == 'win32'",
     "diffusers==0.25.1",
     "huggingface-hub==0.25.2",
     "transformers==4.48.3",
+    "accelerate>=0.31,<1",
     "numpy==1.26.4",
     "pillow>=10,<13",
     "opencv-python-headless==4.11.0.86",

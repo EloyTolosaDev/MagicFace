@@ -41,6 +41,8 @@ python -m pip install -e .
 
 Dependencies are declared in `pyproject.toml`. The core pins keep the custom Diffusers pipeline on the compatible `diffusers==0.25.1`, `huggingface-hub==0.25.2`, and `transformers==4.48.3` set while using Python 3.12.
 
+On Windows, `pyproject.toml` installs the CUDA 12.1 PyTorch wheels directly from the official PyTorch wheel URLs. You still need a working NVIDIA driver; verify with `nvidia-smi` and `python -c "import torch; print(torch.cuda.is_available())"`.
+
 The default install uses `onnxruntime` for CPU preprocessing. If you need ONNX CUDA execution for `preprocess.py` or `retrieve_bg.py`, install the matching `onnxruntime-gpu` build for your CUDA setup after the core install.
 
 Runtime model caches are stored under the repository-local `.models/` directory:

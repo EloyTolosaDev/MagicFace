@@ -63,6 +63,20 @@ This fetches MagicFace assets from [HuggingFace](https://huggingface.co/mengting
 
 ### Usage
 
+#### One-step image modification
+
+Use `modify.py` to crop the source image, build the background/pose condition, and run inference in one process:
+
+```console
+python modify.py --img_path './test_images/00381.png' --au_test 'AU4+AU1' --AU_variation '4+2'
+```
+
+Generated images are written to `edited_images` by default. Temporary crop/background files are deleted after the run. To inspect or reuse them, pass `--work_dir`:
+
+```console
+python modify.py --img_path './test_images/00381.png' --au_test 'AU4' --AU_variation '4' --work_dir './work/00381'
+```
+
 #### Using our examples
 
 You can test our model by editing the images we provided. Model inference needs an identity image

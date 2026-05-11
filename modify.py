@@ -12,6 +12,13 @@ def parse_args(input_args=None):
     parser.add_argument("--AU_variation", type=str, required=True, help="AU intensities, separated by '+'.")
     parser.add_argument("--saved_path", type=Path, default=Path("edited_images"), help="Directory for generated images.")
     parser.add_argument("--no_crop", action="store_true", help="Skip face crop preprocessing and use --img_path directly.")
+    parser.add_argument("--crop_ratio", type=float, default=0.75, help="Face crop ratio used before inference.")
+    parser.add_argument(
+        "--crop_interpolation",
+        choices=("linear", "lanczos"),
+        default="linear",
+        help="Interpolation used for face crop warping.",
+    )
     parser.add_argument(
         "--work_dir",
         "--workdir",
@@ -62,7 +69,14 @@ def run_pipeline(args, work_dir):
     if not args.no_crop:
         from utils.preprocess import crop_one_image
 
-        crop_one_image(SimpleNamespace(img_path=args.img_path, save_path=crop_path))
+        crop_one_image(
+            SimpleNamespace(
+                img_path=args.img_path,
+                save_path=crop_path,
+                crop_ratio=args.crop_ratio,
+                crop_interpolation=args.crop_interpolation,
+            )
+        )
         inference_img_path = crop_path
 
     make_bg_for_one_image(SimpleNamespace(img_path=inference_img_path, save_path=bg_path))

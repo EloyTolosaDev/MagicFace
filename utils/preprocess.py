@@ -21,6 +21,10 @@ except ImportError:
 
 
 pil2tensor = transforms.ToTensor()
+INTERPOLATION_FLAGS = {
+    "linear": cv2.INTER_LINEAR,
+    "lanczos": cv2.INTER_LANCZOS4,
+}
 
 
 def get_bbox(dets, crop_ratio):
@@ -55,11 +59,20 @@ def crop_one_image(args):
         key=lambda x: (x["bbox"][2] - x["bbox"][0]) * (x["bbox"][3] - x["bbox"][1]),
     )[-1]
     dets_sor= face_info_sor['bbox']
-    bbox_pst_sor = get_bbox(dets_sor, crop_ratio=0.75)
+    crop_ratio = getattr(args, "crop_ratio", 0.75)
+    crop_interpolation = getattr(args, "crop_interpolation", "linear")
+    if crop_interpolation not in INTERPOLATION_FLAGS:
+        raise ValueError(f"Unsupported crop interpolation '{crop_interpolation}'.")
+    bbox_pst_sor = get_bbox(dets_sor, crop_ratio=crop_ratio)
 
     warp_mat_crop_sor = datasets_faceswap.transformation_from_points(bbox_pst_sor,
                                                                      datasets_faceswap.mean_box_lm4p_512)
-    im_crop512_sor = cv2.warpAffine(np.array(im_pil_sor), warp_mat_crop_sor, (512, 512), flags=cv2.INTER_LINEAR)
+    im_crop512_sor = cv2.warpAffine(
+        np.array(im_pil_sor),
+        warp_mat_crop_sor,
+        (512, 512),
+        flags=INTERPOLATION_FLAGS[crop_interpolation],
+    )
 
     im_pil_sor = Image.fromarray(im_crop512_sor)
     im_pil_sor = pil2tensor(im_pil_sor)
@@ -80,6 +93,16 @@ if __name__ == '__main__':
         "--save_path",
         type=Path,
         required=True
+    )
+    parser.add_argument(
+        "--crop_ratio",
+        type=float,
+        default=0.75,
+    )
+    parser.add_argument(
+        "--crop_interpolation",
+        choices=("linear", "lanczos"),
+        default="linear",
     )
     args = parser.parse_args()
     crop_one_image(args)

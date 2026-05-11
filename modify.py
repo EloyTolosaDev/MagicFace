@@ -5,13 +5,20 @@ from pathlib import Path
 from types import SimpleNamespace
 
 
-def parse_args():
+def parse_args(input_args=None):
     parser = argparse.ArgumentParser(description="Run the full MagicFace image modification pipeline.")
-    parser.add_argument("--img_path", type=str, required=True, help="Path to the original face image.")
+    parser.add_argument("--img_path", type=Path, required=True, help="Path to the original face image.")
     parser.add_argument("--au_test", type=str, required=True, help="AU names to edit, separated by '+'.")
     parser.add_argument("--AU_variation", type=str, required=True, help="AU intensities, separated by '+'.")
-    parser.add_argument("--saved_path", type=str, default="edited_images", help="Directory for generated images.")
-    parser.add_argument("--work_dir", type=str, default=None, help="Optional directory to keep crop/background files.")
+    parser.add_argument("--saved_path", type=Path, default=Path("edited_images"), help="Directory for generated images.")
+    parser.add_argument(
+        "--work_dir",
+        "--workdir",
+        dest="work_dir",
+        type=Path,
+        default=None,
+        help="Optional directory to keep intermediate crop/background files. Final images use --saved_path.",
+    )
     parser.add_argument("--seed", type=int, default=424, help="Seed for reproducible inference.")
     parser.add_argument("--inference_steps", type=int, default=50, help="Number of diffusion inference steps.")
     parser.add_argument(
@@ -29,13 +36,13 @@ def parse_args():
         action="store_true",
         help="Fail if InsightFace ONNX models cannot use CUDAExecutionProvider.",
     )
-    return parser.parse_args()
+    return parser.parse_args(input_args)
 
 
 def build_intermediate_paths(img_path, work_dir):
-    source_path = Path(img_path)
+    source_path = img_path
     suffix = source_path.suffix or ".png"
-    work_path = Path(work_dir)
+    work_path = work_dir
     work_path.mkdir(parents=True, exist_ok=True)
     return work_path / f"{source_path.stem}_crop{suffix}", work_path / f"{source_path.stem}_bg.png"
 
@@ -51,8 +58,8 @@ def run_pipeline(args, work_dir):
 
     crop_path, bg_path = build_intermediate_paths(args.img_path, work_dir)
 
-    crop_one_image(SimpleNamespace(img_path=args.img_path, save_path=str(crop_path)))
-    make_bg_for_one_image(SimpleNamespace(img_path=str(crop_path), save_path=str(bg_path)))
+    crop_one_image(SimpleNamespace(img_path=args.img_path, save_path=crop_path))
+    make_bg_for_one_image(SimpleNamespace(img_path=crop_path, save_path=bg_path))
 
     inference_args = parse_inference_args(
         [
@@ -75,18 +82,18 @@ def run_pipeline(args, work_dir):
             "--bg_path",
             str(bg_path),
             "--saved_path",
-            args.saved_path,
+            str(args.saved_path),
         ]
     )
     inference_args.revision = args.revision
     inference_args.variant = args.variant
     run_inference(inference_args)
 
-    generated_path = Path(args.saved_path) / crop_path.name
-    output_name = Path(args.img_path).name
-    if not Path(output_name).suffix:
+    generated_path = args.saved_path / crop_path.name
+    output_name = args.img_path.name
+    if not args.img_path.suffix:
         output_name = f"{output_name}.png"
-    output_path = Path(args.saved_path) / output_name
+    output_path = args.saved_path / output_name
     if generated_path.exists() and generated_path != output_path:
         generated_path.replace(output_path)
 

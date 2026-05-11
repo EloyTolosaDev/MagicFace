@@ -241,15 +241,13 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--img_path",
-        type=str,
-        default='',
-        required=False
+        type=Path,
+        required=True
     )
     parser.add_argument(
         "--save_path",
-        type=str,
-        default='',
-        required=False
+        type=Path,
+        required=True
     )
     args = parser.parse_args()
     make_bg_for_one_image(args)

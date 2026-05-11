@@ -1,6 +1,6 @@
 
 import argparse
-import os
+from pathlib import Path
 
 import numpy as np
 import torch
@@ -88,20 +88,20 @@ def parse_args(input_args=None):
 
     parser.add_argument(
         "--img_path",
-        type=str,
-        default='',
+        type=Path,
+        required=True,
     )
 
     parser.add_argument(
         "--bg_path",
-        type=str,
-        default='',
+        type=Path,
+        required=True,
     )
 
     parser.add_argument(
         "--saved_path",
-        type=str,
-        default='edited_images',
+        type=Path,
+        default=Path('edited_images'),
     )
 
     if input_args is not None:
@@ -116,8 +116,8 @@ def make_data(args):
 
     transform = transforms.ToTensor()
 
-    img_name = args.img_path
-    bg_name = args.bg_path
+    img_name = Path(args.img_path)
+    bg_name = Path(args.bg_path)
 
     source = Image.open(img_name)
     source = transform(source)
@@ -252,9 +252,9 @@ def main(args):
     
     print(au_prompt)
 
-    saved_path = args.saved_path
-    os.makedirs(saved_path, exist_ok=True)
-    img_name = args.img_path.split('/')[-1]
+    saved_path = Path(args.saved_path)
+    saved_path.mkdir(parents=True, exist_ok=True)
+    output_path = saved_path / Path(args.img_path).name
 
     tor_exp = torch.from_numpy(au_prompt).unsqueeze(0).to(device=device, dtype=weight_dtype)
     samples = pipeline(
@@ -265,7 +265,7 @@ def main(args):
         num_inference_steps=args.inference_steps,
         generator=generator,
     ).images[0]
-    samples.save(os.path.join(saved_path, img_name))
+    samples.save(output_path)
     print('done')
     # exps = np.load(os.path.join('./test_aus/test_relative_aus', au_test_file))
     # saved_path = os.path.join('./test_out/test_out_only_wild_cartoon2', au_test_file.replace('.npy', ''))

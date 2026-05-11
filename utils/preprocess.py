@@ -2,57 +2,25 @@ import argparse
 import os
 from pathlib import Path
 
+os.environ.setdefault("MPLCONFIGDIR", str(Path(os.environ.get("TMPDIR", "/tmp")) / "magicface_matplotlib"))
+Path(os.environ["MPLCONFIGDIR"]).mkdir(parents=True, exist_ok=True)
+os.environ.setdefault("NO_ALBUMENTATIONS_UPDATE", "1")
+
 import cv2
 import numpy as np
-import onnxruntime as ort
 import torchvision.transforms as transforms
 from PIL import Image
 from torchvision.utils import save_image
 
-os.environ.setdefault("NO_ALBUMENTATIONS_UPDATE", "1")
-
-from insightface.app import FaceAnalysis
-
 try:
-    from .model_assets import ensure_insightface_model
-    from .paths import INSIGHTFACE_ROOT
+    from .face_analysis import get_face_analysis_app
     from .data import datasets_faceswap
 except ImportError:
-    from model_assets import ensure_insightface_model
-    from paths import INSIGHTFACE_ROOT
+    from face_analysis import get_face_analysis_app
     import data.datasets_faceswap as datasets_faceswap
 
 
 pil2tensor = transforms.ToTensor()
-app = None
-
-
-def get_onnx_providers():
-    available_providers = ort.get_available_providers()
-    if "CUDAExecutionProvider" in available_providers:
-        return ["CUDAExecutionProvider", "CPUExecutionProvider"], 0
-    return ["CPUExecutionProvider"], -1
-
-
-def get_face_analysis_app():
-    global app
-
-    if app is not None:
-        return app
-
-    providers, ctx_id = get_onnx_providers()
-    ensure_insightface_model()
-
-    try:
-        app = FaceAnalysis(name="antelopev2", root=str(INSIGHTFACE_ROOT), providers=providers)
-        app.prepare(ctx_id=ctx_id, det_size=(640, 640))
-    except Exception as exc:
-        raise RuntimeError(
-            f"Failed to initialize InsightFace models from '{INSIGHTFACE_ROOT}'. "
-            "Expected files under 'models/antelopev2' inside that directory."
-        ) from exc
-
-    return app
 
 
 def get_bbox(dets, crop_ratio):

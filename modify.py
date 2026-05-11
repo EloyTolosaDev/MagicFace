@@ -1,4 +1,5 @@
 import argparse
+import os
 import tempfile
 from pathlib import Path
 from types import SimpleNamespace
@@ -23,6 +24,11 @@ def parse_args():
     parser.add_argument("--variant", type=str, default=None)
     parser.add_argument("--denoising_unet_path", type=str, default="mengtingwei/magicface")
     parser.add_argument("--ID_unet_path", type=str, default="mengtingwei/magicface")
+    parser.add_argument(
+        "--require_onnx_cuda",
+        action="store_true",
+        help="Fail if InsightFace ONNX models cannot use CUDAExecutionProvider.",
+    )
     return parser.parse_args()
 
 
@@ -35,6 +41,9 @@ def build_intermediate_paths(img_path, work_dir):
 
 
 def run_pipeline(args, work_dir):
+    if args.require_onnx_cuda:
+        os.environ["MAGICFACE_REQUIRE_ONNX_CUDA"] = "1"
+
     from inference import main as run_inference
     from inference import parse_args as parse_inference_args
     from utils.preprocess import crop_one_image

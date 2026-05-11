@@ -11,6 +11,7 @@ def parse_args(input_args=None):
     parser.add_argument("--au_test", type=str, required=True, help="AU names to edit, separated by '+'.")
     parser.add_argument("--AU_variation", type=str, required=True, help="AU intensities, separated by '+'.")
     parser.add_argument("--saved_path", type=Path, default=Path("edited_images"), help="Directory for generated images.")
+    parser.add_argument("--no_crop", action="store_true", help="Skip face crop preprocessing and use --img_path directly.")
     parser.add_argument(
         "--work_dir",
         "--workdir",
@@ -40,9 +41,9 @@ def parse_args(input_args=None):
 
 
 def build_intermediate_paths(img_path, work_dir):
-    source_path = img_path
+    source_path = Path(img_path)
     suffix = source_path.suffix or ".png"
-    work_path = work_dir
+    work_path = Path(work_dir)
     work_path.mkdir(parents=True, exist_ok=True)
     return work_path / f"{source_path.stem}_crop{suffix}", work_path / f"{source_path.stem}_bg.png"
 
@@ -53,13 +54,18 @@ def run_pipeline(args, work_dir):
 
     from inference import main as run_inference
     from inference import parse_args as parse_inference_args
-    from utils.preprocess import crop_one_image
     from utils.retrieve_bg import make_bg_for_one_image
 
     crop_path, bg_path = build_intermediate_paths(args.img_path, work_dir)
 
-    crop_one_image(SimpleNamespace(img_path=args.img_path, save_path=crop_path))
-    make_bg_for_one_image(SimpleNamespace(img_path=crop_path, save_path=bg_path))
+    inference_img_path = args.img_path
+    if not args.no_crop:
+        from utils.preprocess import crop_one_image
+
+        crop_one_image(SimpleNamespace(img_path=args.img_path, save_path=crop_path))
+        inference_img_path = crop_path
+
+    make_bg_for_one_image(SimpleNamespace(img_path=inference_img_path, save_path=bg_path))
 
     inference_args = parse_inference_args(
         [
@@ -78,7 +84,7 @@ def run_pipeline(args, work_dir):
             "--AU_variation",
             args.AU_variation,
             "--img_path",
-            str(crop_path),
+            str(inference_img_path),
             "--bg_path",
             str(bg_path),
             "--saved_path",
@@ -89,7 +95,7 @@ def run_pipeline(args, work_dir):
     inference_args.variant = args.variant
     run_inference(inference_args)
 
-    generated_path = args.saved_path / crop_path.name
+    generated_path = args.saved_path / inference_img_path.name
     output_name = args.img_path.name
     if not args.img_path.suffix:
         output_name = f"{output_name}.png"
